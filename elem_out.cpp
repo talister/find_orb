@@ -3030,7 +3030,7 @@ specify a TDB epoch.
 #define FOUND_A                8
 #define FOUND_MEAN_ANOMALY    16
 
-static double extract_state_vect_from_text( const char *text,
+double extract_state_vect_from_text( const char *text,
             double *orbit, double *abs_mag)
 {
    char tbuff[81];
