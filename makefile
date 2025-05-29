@@ -160,6 +160,10 @@ miscell.o: prefix.h
 
 LIBS=$(LIBSADDED) -llunar -ljpl -lsatell
 FIND_ORB_OBJS = clipfunc.o getstrex.o
+LIBEXE = ar
+LIBFLAGS = crsv
+LIBFO = libfo.a
+
 
 # If no Curses library has been specified,  we use ncursesw if it's
 # available.  Otherwise,  we use the ncurses lib and hope it actually
@@ -241,12 +245,26 @@ cvt_elem.cgi:	          cvt_elem.o
 cvt_elem.o:            conv_ele.cpp
 	$(CXX) $(CXXFLAGS) -o cvt_elem.o -DCGI_VERSION $<
 
+compute_ephem.o:	compute_ephem.cpp
+	$(CXX) -c -g -Og -I $(INSTALL_DIR)/include $<
+
+compute_ephem$(EXE): 		compute_ephem.o ephem_subs.o $(OBJS) $(LIBFO)
+	$(CXX) -o compute_ephem$(EXE) compute_ephem.o ephem0.o -L . -lfo $(LIBS)
+
+test_get_object_name.o:        test_get_object_name.c
+	$(CXX) $(CXXFLAGS) $<
+
+test_get_object_name$(EXE):		test_get_object_name.o $(OBJS)
+	$(CXX) -o test_get_object_name$(EXE) test_get_object_name.o -L . -lfo $(LIBS)
+
 IDIR=$(PREFIX)/share/findorb/data
 ifeq ($(PREFIX),$(DEFAULT_PREFIX))
 	# backwards compatibility
 	IDIR=../.find_orb
 endif
 
+$(LIBFO): $(OBJS)
+	$(LIBEXE) $(LIBFLAGS) $(LIBFO) $(OBJS)
 clean:
 	$(RM) $(OBJS) fo.o findorb.o fo_serve.o $(FIND_ORB_EXE) $(FO_EXE)
 	$(RM) fo_serve.cgi eph2tle.o eph2tle$(EXE) cssfield$(EXE)
