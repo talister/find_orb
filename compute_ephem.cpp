@@ -274,10 +274,8 @@ double round_to( const double x, const double step)
 
 int main( const int argc, const char **argv)
 {
-    // static const double tdt_minus_tai = 32.184;
-    // static long double J2000 = 2451545.;
+
     static const double jan_1970 = 2440587.5;
-    //double dt = 1; //, dist, x, y, z, ra, dec;
     double t = jan_1970 + (double)( time( NULL) / seconds_per_day);
     double abs_mag = 10.0; /* default/dummy value */
     double curr_epoch, orbit[2 * 6];
@@ -465,7 +463,7 @@ int main( const int argc, const char **argv)
         curr_jd = round_to( curr_jd + i * step - .5, step) + .5;
 
         delta_t = td_minus_utc( curr_jd) / seconds_per_day;
-        /* UTC ephmeris*/
+        /* UTC ephemeris */
         ephemeris_t = curr_jd + delta_t;
         utc = curr_jd;
         printf("curr_jd, ephemeris_t= %11.3f , %17.9f\n", curr_jd, ephemeris_t);
@@ -488,7 +486,7 @@ int main( const int argc, const char **argv)
             const char *sigma_delta_placeholder = "!sigma_delta!";
             const char *sigma_rvel_placeholder = "!sigma_rv!";
 
-            /* Fake initialize orbit */
+            /* Integrate orbit from them initial/previous TT time to the current one */
 
             integrate_orbit( orbit, prev_ephem_t, ephemeris_t);
             for( j = 0; j < 3; j++)
@@ -515,7 +513,7 @@ int main( const int argc, const char **argv)
             r = vector3_length( topo);
             /* Include LTT lag */
 
-            /* rotate topo vector frp, ecliptic to equatorial */
+            /* rotate topo vectors from ecliptic to equatorial */
             ecliptic_to_equatorial( topo);                           /* mpc_obs.cpp */
             ecliptic_to_equatorial( geo);
             ecliptic_to_equatorial( topo_vel);
@@ -537,7 +535,7 @@ int main( const int argc, const char **argv)
             else                    /* heliocentric viewpoint;  elong is  */
                 cos_elong = -1.;     /* undefined; just set it to 180 deg */
             elong = acose( cos_elong);
-            // foo
+            // Normalize RA into range 0...24h (radian->hour conversion done above)
             if( ra < 0.) ra += 24.;
             if( ra >= 24.) ra -= 24.;
             output_angle_to_buff( ra_buff, ra, ra_format);
