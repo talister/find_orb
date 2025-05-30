@@ -34,6 +34,8 @@ int get_observer_data( const char FAR *mpc_code, char *buff, mpc_code_t *cinfo);
 void remove_trailing_cr_lf( char *buff);
 double extract_state_vect_from_text( const char *text,
             double *orbit, double *abs_mag); /* elem_out.cpp */
+void light_time_lag( const double jde, const double *orbit,       /* orb_func.c */
+             const double *observer, double *result, const int is_heliocentric);
 
 // char *fgets_trimmed( char *buff, size_t max_bytes, FILE *ifile)
 // {
@@ -363,10 +365,11 @@ int main( const int argc, const char **argv)
                     printf("[%2d] = %10.7f\n", i, orbit[i]);
                 }
         }
-    else /* Determine orbit from elements*/
+    else /* Determine orbit from elements */
         {
             printf("computing orbit from elements\n");
             comet_posn_and_vel( &elem, elem.epoch, orbit, orbit + 3);
+            abs_mag = elem.abs_mag;
         }
     printf("curr_epoch, elem.epoch= %f %f\n", curr_epoch, elem.epoch);
     /* From EPHEM_START in environ.dat 2025-04-25 00:00*/
@@ -386,8 +389,6 @@ int main( const int argc, const char **argv)
     /* Desired MPC code for ephemeris */
     const char mpc_code[4] = "W86";
     assert( strlen( mpc_code) >= 3);
-    printf("MPC code=%sXXX\n", mpc_code);
-    printf("lat, lon= %f, %f\nAlt=%.1f\n", cinfo.lat, cinfo.lon, cinfo.alt);
     // get_observer_data( mpc_code, buff, &cinfo);
     /* get_observer_data segfaults for some reason so for the time being, call 
     this lower level routine instead with the specific line from ObsCodes.html*/
@@ -435,7 +436,7 @@ int main( const int argc, const char **argv)
     step = get_step_size( ephemeris_step_size, &step_units, &n_step_digits);
     printf("step=%f %d\n", step, step_units);
 
-    printf( "                  RA             dec     dist    radius  mag Elong\n");
+    printf( "Date (UTC)     RA            Dec          delta  r     Elong  ph_ang  mag\n");
     debug_level = 9;
     // For step_units='d'
     hh_mm = 0;
@@ -474,7 +475,7 @@ int main( const int argc, const char **argv)
         printf(" xvel=%f, yvel=%f, zvel=%f\n", geo_vel[0], geo_vel[1], geo_vel[2]);
         for( obj_n = 0; obj_n < n_objects; obj_n++)
             {
-            double orbi[obj_n * n_orbit_params];
+            /* double orbi[obj_n * n_orbit_params]; */
             double radial_vel, v_dot_r;
             double topo[3], topo_vel[3], geo[3], r;
             double topo_ecliptic[3];
@@ -512,8 +513,37 @@ int main( const int argc, const char **argv)
 
             r = vector3_length( topo);
             /* Include LTT lag */
+            extern int use_light_bending;           /* ephem0.cpp */
+            use_light_bending = 1;
 
+            light_time_lag( ephemeris_t, orbit, obs_posn, orbi_after_light_lag, 0);
+            for( j = 0; j < 6; j++)
+               {
+               const double diff = orbi_after_light_lag[j] - orbit[j];
+
+               if( j < 3)
+                  {
+                  topo[j] += diff;
+                  geo[j] += diff;
+                  }
+               else
+                  topo_vel[j - 3] += diff;
+               }
+
+            /* Not sure what this is doing... */
+            memset( &temp_obs, 0, sizeof( OBSERVE));
+            temp_obs.r = vector3_length( topo);
+            for( j = 0; j < 3; j++)
+                {
+                temp_obs.vect[j] = topo[j] / r;
+                temp_obs.obs_vel[j] = -topo_vel[j];
+                }
+            memcpy( temp_obs.obs_posn, obs_posn, 3 * sizeof( double));
+            for( j = 0; j < 3; j++)
+                temp_obs.obj_posn[j] = temp_obs.obs_posn[j] + topo[j];
             /* rotate topo vectors from ecliptic to equatorial */
+            memcpy( topo_ecliptic, topo, 3 * sizeof( double));
+
             ecliptic_to_equatorial( topo);                           /* mpc_obs.cpp */
             ecliptic_to_equatorial( geo);
             ecliptic_to_equatorial( topo_vel);
@@ -527,7 +557,7 @@ int main( const int argc, const char **argv)
             char ra_buff[80], dec_buff[80];
             double phase_ang, curr_mag, air_mass = 40.;
 
-            solar_r = vector3_length( orbit); // vector3_length( orbi_after_light_lag);
+            solar_r = vector3_length( orbi_after_light_lag);
             earth_r = vector3_length( obs_posn_equatorial);
             cos_elong = r * r + earth_r * earth_r - solar_r * solar_r;
             if( earth_r)
@@ -593,7 +623,7 @@ int main( const int argc, const char **argv)
             // Output Alt/Az (optionally for Sun and Moon as well)
 
             // Output line (eventually to file)
-            printf("\nbuff=%s", buff);
+            printf("\n%s\n", buff);
             prev_ephem_t = ephemeris_t;
             }
         printf("\n");
